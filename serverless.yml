@@ -5,7 +5,7 @@ provider:
   runtime: python3.8
   stage: ${opt:stage, 'dev'}
   region: eu-central-1
-  stackName: ${self.service}
+  stackName: ${self:service}
   logRetentionInDays: 14
 
 package:
@@ -17,6 +17,7 @@ plugins:
 functions:
   trigger:
     handler: functions/trigger/src/handler.lambda_handler
+    name: ${self:service}-trigger
     memorySize: 128
     package:
       exclude:
@@ -35,6 +36,7 @@ functions:
 
   deduplicate:
     handler: functions/deduplicate/src/handler.lambda_handler
+    name: ${self:service}-deduplicate
     package:
       exclude:
         - ./**
@@ -43,6 +45,7 @@ functions:
 
   aggregate:
     handler: functions/aggregate/src/handler.lambda_handler
+    name: ${self:service}-aggregate
     package:
       exclude:
         - ./**
@@ -51,18 +54,19 @@ functions:
 
 stepFunctions:
   stateMachines:
-    name: BannersClickStream
-    definition:
-      StartAt: Deduplication
-      States:
-        Deduplication:
-          Type: Task
-          Resource: arn:aws:lambda:{{ aws_region }}:{{ aws_caller_facts.account }}:function:{{ stackName }}-deduplicate
-          Next: Aggregation
-        Aggregation:
-          Type: Task
-          Resource: arn:aws:lambda:{{ aws_region }}:{{ aws_caller_facts.account }}:function:{{ stackName }}-aggregate
-          End: true
+    BannersClickStream:
+      name: BannersClickStream
+      definition:
+        StartAt: Deduplication
+        States:
+          Deduplication:
+            Type: Task
+            Resource: !GetAtt deduplicate.Arn
+            Next: Aggregation
+          Aggregation:
+            Type: Task
+            Resource: !GetAtt aggregate.Arn
+            End: true
 
 resources:
   Resources:
@@ -72,4 +76,4 @@ resources:
         BucketEncryption:
           ServerSideEncryptionConfiguration:
             - ServerSideEncryptionByDefault:
-                SSEAlgorithm: AES25
+                SSEAlgorithm: AES256
