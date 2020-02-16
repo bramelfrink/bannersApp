@@ -2,9 +2,8 @@
 Holds the methods that take care of the deduplication step.
 """
 import os
-from typing import Union, Hashable, Sequence
+from typing import Union, Hashable, Sequence, List
 
-import boto as boto
 import boto3
 import pandas as pd
 from pandas import DataFrame
@@ -22,6 +21,18 @@ def deduplicate_input(df: DataFrame, subset: Union[Hashable, Sequence[Hashable]]
     return deduplicated_df
 
 
+def find_duplicates(df: DataFrame, deduplicated_df: DataFrame) -> DataFrame:
+    """
+    Finds all duplicates by checking which click_ids were in df, but are no longer in deduplicated_df.
+
+    :param df: the original df
+    :param deduplicated_df: the deduplicated df
+    :return: a dataframe with all the duplicates
+    """
+    duplicate_df = df[(~df.click_id.isin(deduplicated_df.click_id))]
+    return duplicate_df
+
+
 class DynamoDBDeduplication:
 
     def __init__(self, column: str):
@@ -37,6 +48,7 @@ class DynamoDBDeduplication:
         :param dbclient: the DynamoDB client
         :return: True if it is a duplicate, false otherwise
         """
+
         item = self.client.get_item(
             TableName=os.environ['tableName'],
             Key={
@@ -45,17 +57,21 @@ class DynamoDBDeduplication:
                 }
             }
         )
+        unique = 'Item' not in item
+        if unique:
+            # Item is not yet stored in DynamoDB, so register it now.
+            self.store_item(id)
         return 'Item' not in item
 
-
-if __name__ == '__main__':
-    os.environ['tableName'] = 'Banners-DynamoDBClicks-16653UQLD7IX7'
-    df = pd.DataFrame(
-        {
-            'click_id': [1,2,3,123]
-        }
-    )
-
-    db = DynamoDBDeduplication('click_id')
-    deduplicated_df = df[df['click_id'].apply(db.is_unique)]
-    print(deduplicated_df.head())
+    def store_item(self, id: int):
+        """
+        Stores the item in DynamoDB.
+        """
+        self.client.put_item(
+            TableName=os.environ['tableName'],
+            Item={
+                self.column: {
+                    'N': str(id)
+                }
+            }
+        )
