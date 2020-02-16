@@ -3,7 +3,7 @@ service: Banners
 provider:
   name: aws
   runtime: python3.8
-  stage: ${opt:stage}
+  stage: ${opt:stage, 'dev'}
   region: eu-central-1
   stackName: ${self.service}
   logRetentionInDays: 14
