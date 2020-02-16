@@ -11,6 +11,10 @@ from functions.deduplicate.src.deduplicate import deduplicate_input
 
 
 def compare_dataframes(result: DataFrame, expected: DataFrame):
+    """
+    Resets the index of the result, because the index might have gaps after deduplication and checks if the
+    result and expected are equal.
+    """
     assert_frame_equal(result.reset_index(drop=True), expected)
 
 class DeduplicateClickTest(unittest.TestCase):
