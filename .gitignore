@@ -20,3 +20,4 @@ var/
 .serverless
 /csv/
 /node_modules/
+/layers/pandas/python/

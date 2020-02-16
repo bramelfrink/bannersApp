@@ -7,12 +7,37 @@ provider:
   region: eu-central-1
   stackName: ${self:service}
   logRetentionInDays: 14
+  iamRoleStatements:
+    - Effect: Allow
+      # I'm a bit liberal with the permissions for now, promise that I won't do that on actual projects :)
+      Action:
+        - 's3:*'
+      Resource:
+        - !GetAtt ClickstreamBucket.Arn
+        - Fn::Join: ['/', [!GetAtt ClickstreamBucket.Arn, '*']]
+    - Effect: Allow
+      Action:
+        - 'dynamodb:*'
+      Resource:
+        - !GetAtt DynamoDBClicks.Arn
+        - !GetAtt DynamoDBConversions.Arn
+
+layers:
+  Pandas:
+    path: layers/pandas
+    name: ${self:service}-pandas
+    description: layer with Pandas to reduce package size and speed up deployment
+    compatibleRuntimes:
+      - python3.8
+    allowedAccounts:
+      - '*'
 
 package:
   individually: true
 
 plugins:
   - serverless-step-functions
+  - serverless-python-requirements
 
 functions:
   trigger:
@@ -37,22 +62,28 @@ functions:
   deduplicate_clicks:
     handler: functions/deduplicate/src/handler.click_lambda_handler
     name: ${self:service}-deduplicate-clicks
+    layers:
+      - !Ref PandasLambdaLayer
     package:
       exclude:
         - ./**
       include:
         - functions/deduplicate/**
+        - helpers/s3.py
     environment:
       tableName: !Ref DynamoDBClicks
 
   deduplicate_conversions:
     handler: functions/deduplicate/src/handler.conversion_lambda_handler
     name: ${self:service}-deduplicate-conversions
+    layers:
+      - !Ref PandasLambdaLayer
     package:
       exclude:
         - ./**
       include:
         - functions/deduplicate/**
+        - helpers/s3.py
     environment:
       tableName: !Ref DynamoDBConversions
 
@@ -64,6 +95,7 @@ functions:
         - ./**
       include:
         - functions/aggregate/**
+        - helpers/s3.py
 
 stepFunctions:
   stateMachines:
@@ -133,8 +165,8 @@ resources:
       Properties:
         # only define the attributes that DynamoDB needs to know about to build the KeySchema
         AttributeDefinitions:
-            - AttributeName: click_id
-              AttributeType: N
+          - AttributeName: click_id
+            AttributeType: N
         BillingMode: PAY_PER_REQUEST
         KeySchema:
           - AttributeName: click_id
