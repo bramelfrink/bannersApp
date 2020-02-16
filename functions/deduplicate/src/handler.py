@@ -20,7 +20,12 @@ def deduplicate(event, name: str):
     dynamodb = DynamoDBDeduplication('click_id')
     deduplicated_df = df_partially_deduplicated[df_partially_deduplicated['click_id'].apply(dynamodb.is_unique)]
 
+    # store full records in DynamoDB
+
     # find and store duplicates
+    # Only stores completely dropped columns, because duplicates within the same CSV file are already dropped by
+    # deduplicate_input().
+    # I did it this way to make less call to DynamoDB.
     duplicate_df = find_duplicates(df, deduplicated_df)
     s3.write(duplicate_df, f'duplicates/{name}/')
 

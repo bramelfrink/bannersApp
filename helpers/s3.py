@@ -14,8 +14,6 @@ class S3:
         self.bucket = bucket
         self.key_read = key_read
         self.folder_write = folder_write
-        
-        self.csv_reader = self.read()
 
     def read(self) -> DataFrame:
         """
