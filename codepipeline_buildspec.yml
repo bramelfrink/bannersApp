@@ -12,4 +12,5 @@ phases:
       - bash nodesource_setup.sh
       - apt install nodejs
       - npm install -g serverless
+      - npm install serverless-step-functions
       - sls deploy

@@ -1,0 +1,20 @@
+{
+  "name": "Banners",
+  "version": "1.0.0",
+  "description": "Processes Banners Clickstream data",
+  "main": "",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/bramelfrink/bannersApp"
+  },
+  "author": "Bram Elfrink",
+  "license": "ISC",
+  "dependencies": {},
+  "devDependencies": {
+    "serverless": "",
+    "serverless-step-functions": "^2.17.1"
+  }
+}

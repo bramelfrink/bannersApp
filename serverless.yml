@@ -49,6 +49,21 @@ functions:
       include:
         - functions/aggregate/**
 
+stepFunctions:
+  stateMachines:
+    name: BannersClickStream
+    definition:
+      StartAt: Deduplication
+      States:
+        Deduplication:
+          Type: Task
+          Resource: arn:aws:lambda:{{ aws_region }}:{{ aws_caller_facts.account }}:function:{{ stackName }}-deduplicate
+          Next: Aggregation
+        Aggregation:
+          Type: Task
+          Resource: arn:aws:lambda:{{ aws_region }}:{{ aws_caller_facts.account }}:function:{{ stackName }}-aggregate
+          End: true
+
 resources:
   Resources:
     ClickstreamBucket:
