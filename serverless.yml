@@ -1,0 +1,60 @@
+service: Banners
+
+provider:
+  name: aws
+  runtime: python3.8
+  stage: ${opt:stage}
+  region: eu-central-1
+  stackName: ${self.service}
+  logRetentionInDays: 14
+
+package:
+  individually: true
+
+plugins:
+  - serverless-step-functions
+
+functions:
+  trigger:
+    handler: functions/trigger/src/handler.lambda_handler
+    memorySize: 128
+    package:
+      exclude:
+        - ./**
+      include:
+        - functions/trigger/src/**
+    environment:
+      stateMachineArn: arn:aws:states:{{ aws_region }}:{{ aws_caller_facts.account }}:stateMachine:Banners
+    events:
+      - s3:
+        bucket: ClickstreamBucket
+        events:
+          - s3:ObjectCreated:Put
+        rules:
+          - prefix: in/
+
+  deduplicate:
+    handler: functions/deduplicate/src/handler.lambda_handler
+    package:
+      exclude:
+        - ./**
+      include:
+        - functions/deduplicate/**
+
+  aggregate:
+    handler: functions/aggregate/src/handler.lambda_handler
+    package:
+      exclude:
+        - ./**
+      include:
+        - functions/aggregate/**
+
+resources:
+  Resources:
+    ClickstreamBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketEncryption:
+          ServerSideEncryptionConfiguration:
+            - ServerSideEncryptionByDefault:
+                SSEAlgorithm: AES25
