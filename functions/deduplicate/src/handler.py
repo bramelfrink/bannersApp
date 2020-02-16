@@ -1,24 +1,38 @@
 """
 Read input data from S3, remove duplicate rows, remove rows that are already in DynamoDB and write to S3.
 """
+from functions.deduplicate.src.deduplicate import deduplicate_input, DynamoDBDeduplication, find_duplicates
 from helpers.s3 import S3
-from functions.deduplicate.src.deduplicate import deduplicate_input, DynamoDBDeduplication
 
 
-def lambda_handler(event, context):
+def deduplicate(event, name: str):
     """
-    The handler is called whenever the Lambda function is invoked.
+    Deduplicates the input files and checks if the id is already present in DynamoDB
     """
     # read from S3
     s3 = S3(event['bucket'], event['key'], 'deduplicated')
     df = s3.read()
 
     # deduplicate input
-    df = deduplicate_input(df, 'click_id')
+    df_partially_deduplicated = deduplicate_input(df, 'click_id')
 
     # deduplicate using DynamoDB
     dynamodb = DynamoDBDeduplication('click_id')
-    deduplicated_df = df[df['click_id'].apply(dynamodb.is_unique)]
+    deduplicated_df = df_partially_deduplicated[df_partially_deduplicated['click_id'].apply(dynamodb.is_unique)]
+
+    # find and store duplicates
+    duplicate_df = find_duplicates(df, deduplicated_df)
+    s3.write(duplicate_df, f'duplicates/{name}/')
 
     # write to S3
-    s3.write(deduplicated_df)
+    s3.write(deduplicated_df, s3.folder_write)
+
+
+def click_lambda_handler(event, _):
+    """Deduplicates click events"""
+    deduplicate(event, 'clicks')
+
+
+def conversion_lambda_handler(event, _):
+    """Deduplicates conversion events"""
+    deduplicate(event, 'conversions')

@@ -34,9 +34,9 @@ functions:
         rules:
           - prefix: in/
 
-  deduplicate:
-    handler: functions/deduplicate/src/handler.lambda_handler
-    name: ${self:service}-deduplicate
+  deduplicate_clicks:
+    handler: functions/deduplicate/src/handler.click_lambda_handler
+    name: ${self:service}-deduplicate-clicks
     package:
       exclude:
         - ./**
@@ -44,6 +44,17 @@ functions:
         - functions/deduplicate/**
     environment:
       tableName: !Ref DynamoDBClicks
+
+  deduplicate_conversions:
+    handler: functions/deduplicate/src/handler.conversion_lambda_handler
+    name: ${self:service}-deduplicate-conversions
+    package:
+      exclude:
+        - ./**
+      include:
+        - functions/deduplicate/**
+    environment:
+      tableName: !Ref DynamoDBConversions
 
   aggregate:
     handler: functions/aggregate/src/handler.lambda_handler
@@ -56,15 +67,40 @@ functions:
 
 stepFunctions:
   stateMachines:
-    BannersClickStream:
-      name: BannersClickStream
+    BannersClickStream-clicks:
+      name: BannersClickStream-clicks
       definition:
         StartAt: Deduplication
         States:
           Deduplication:
             Type: Task
-            Resource: !GetAtt deduplicate.Arn
+            Resource: !GetAtt deduplicate_clicks.Arn
             Next: Aggregation
+          Aggregation:
+            Type: Task
+            Resource: !GetAtt aggregate.Arn
+            End: true
+
+    BannersClickStream-conversions:
+      name: BannersClickStream-clicks
+      definition:
+        StartAt: Deduplication
+        States:
+          Deduplication:
+            Type: Task
+            Resource: !GetAtt deduplicate_conversions.Arn
+            Next: Aggregation
+          Aggregation:
+            Type: Task
+            Resource: !GetAtt aggregate.Arn
+            End: true
+
+    BannersClickStream-impressions:
+      # Assume that impressions are unique
+      name: BannersClickStream-impressions
+      definition:
+        StartAt: Aggregation
+        States:
           Aggregation:
             Type: Task
             Resource: !GetAtt aggregate.Arn
@@ -87,6 +123,18 @@ resources:
         AttributeDefinitions:
           - AttributeName: click_id
             AttributeType: N
+        BillingMode: PAY_PER_REQUEST
+        KeySchema:
+          - AttributeName: click_id
+            KeyType: HASH
+
+    DynamoDBConversions:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        # only define the attributes that DynamoDB needs to know about to build the KeySchema
+        AttributeDefinitions:
+            - AttributeName: click_id
+              AttributeType: N
         BillingMode: PAY_PER_REQUEST
         KeySchema:
           - AttributeName: click_id
