@@ -1,0 +1,253 @@
+---
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: Continuous delivery pipeline for the Banners assignment
+
+Parameters:
+  OAuthToken:
+    Type: String
+    Description: Your GitHub personal access token
+    NoEcho: true
+
+  GitBranch:
+    Type: String
+    Description: The git branch from which to build the project
+
+Resources:
+  CodePipelineArtifactStore:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+
+  CodeBuild:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - codebuild.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: CloudFormation
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cloudformation:CreateUploadBucket
+                  - cloudformation:EstimateTemplateCost
+                  - cloudformation:DescribeStackDriftDetectionStatus
+                  - cloudformation:ListExports
+                  - cloudformation:ListStacks
+                  - cloudformation:ListImports
+                  - cloudformation:DescribeAccountLimits
+                  - cloudformation:ValidateTemplate
+                  - cloudformation:GetTemplateSummary
+                Resource: "*"
+              - Effect: Allow
+                Action: cloudformation:*
+                Resource:
+                  - Fn::Join:
+                      - ":"
+                      - - arn
+                        - aws
+                        - cloudformation
+                        - Ref: AWS::Region
+                        - Ref: AWS::AccountId
+                        - Fn::Join:
+                            - "/"
+                            - - stack
+                              - Banners
+                              - "*"
+                  - Fn::Join:
+                      - ":"
+                      - - arn
+                        - aws
+                        - cloudformation
+                        - Ref: AWS::Region
+                        - Ref: AWS::AccountId
+                        - Fn::Join:
+                            - "/"
+                            - - stackset
+                              - Banners
+                              - "*"
+        - PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Resource:
+                  - arn:aws:s3:::codepipeline-eu-central-1-*
+                Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                  - s3:GetBucketAcl
+                  - s3:GetBucketLocation
+          PolicyName: CodeBuildBasePolicy-Banners
+        - PolicyDocument:
+            Statement:
+              - Effect: Allow
+                Resource:
+                  - "*"
+                Action:
+                  - codebuild:BatchGetBuilds
+                  - codebuild:CreateProject
+                  - codebuild:BatchGetProjects
+                  - codebuild:DeleteProject
+                  - codebuild:UpdateProject
+          PolicyName: CodeBuild-Banners
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AWSLambdaFullAccess
+        - arn:aws:iam::aws:policy/CloudWatchLogsFullAccess
+        - arn:aws:iam::aws:policy/IAMFullAccess
+        - arn:aws:iam::aws:policy/AmazonSNSFullAccess
+        - arn:aws:iam::aws:policy/AWSCodeStarFullAccess
+
+  BannersCD:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Artifacts:
+        Type: CODEPIPELINE
+      Description: Deploys Banners Serverless service
+      Environment:
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/standard:3.0
+        Type: LINUX_CONTAINER
+      LogsConfig:
+        CloudWatchLogs:
+          GroupName: CodeBuild
+          Status: ENABLED
+          StreamName: Banners-deploy
+        S3Logs:
+          Status: DISABLED
+      ServiceRole:
+        Ref: CodeBuild
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: codepipeline_buildspec.yml
+      TimeoutInMinutes: 60
+
+  CodePipeline:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - codepipeline.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyDocument:
+            Statement:
+              - Effect: Allow
+                Resource:
+                  - Fn::GetAtt: [BannersCD, Arn]
+                Action:
+                  - codebuild:StartBuild
+                  - codebuild:BatchGetBuilds
+          PolicyName: CodeBuild-Banners
+        - PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Resource:
+                  - Fn::GetAtt:
+                      - CodePipelineArtifactStore
+                      - Arn
+                  - Fn::Join:
+                      - '/'
+                      - - Fn::GetAtt:
+                            - CodePipelineArtifactStore
+                            - Arn
+                        - '*'
+                Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                  - s3:GetBucketAcl
+                  - s3:GetBucketLocation
+          PolicyName: s3
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/CloudWatchLogsFullAccess
+
+  # CodePipeline
+  Banners:
+    Type: AWS::CodePipeline::Pipeline
+    Properties:
+      ArtifactStore:
+        Type: S3
+        Location:
+          Ref: CodePipelineArtifactStore
+      RoleArn:
+        Fn::GetAtt:
+          - CodePipeline
+          - Arn
+      Stages:
+        - Name: Source
+          Actions:
+            - Name: Source
+              ActionTypeId:
+                Category: Source
+                Owner: ThirdParty
+                Provider: GitHub
+                Version: 1
+              Configuration:
+                Owner: bramelfrink
+                Repo: bannersApp
+                PollForSourceChanges: true
+                Branch:
+                  Ref: GitBranch
+                OAuthToken:
+                  Ref: OAuthToken
+              OutputArtifacts:
+                - Name: SourceArtifact
+              InputArtifacts: []
+              Region:
+                Ref: AWS::Region
+              RunOrder: 1
+
+        - Name: Build
+          Actions:
+            - Name: Build
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: 1
+              Configuration:
+                ProjectName:
+                  Ref: BannersCD
+              InputArtifacts:
+                - Name: SourceArtifact
+              OutputArtifacts:
+                - Name: BuildArtifact
+              Region:
+                Ref: AWS::Region
+              RunOrder: 1
+
+  CodeBuildSourceCredential:
+    Type: AWS::CodeBuild::SourceCredential
+    Properties:
+      AuthType: PERSONAL_ACCESS_TOKEN
+      ServerType: GITHUB
+      Token:
+        Ref: OAuthToken
+
+Outputs:
+  CodeBuildSourceCredential:
+    Description: Source credential for GitHub
+    Value:
+      Ref: CodeBuildSourceCredential
+    Export:
+      Name:
+        Fn::Sub: "${AWS::StackName}-CodeBuildSourceCredential"
