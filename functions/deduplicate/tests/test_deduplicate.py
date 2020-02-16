@@ -17,6 +17,7 @@ def compare_dataframes(result: DataFrame, expected: DataFrame):
     """
     assert_frame_equal(result.reset_index(drop=True), expected)
 
+
 class DeduplicateClickTest(unittest.TestCase):
     def test_no_duplicates_clicks(self):
         input_df = pd.DataFrame(

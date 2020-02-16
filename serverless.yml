@@ -42,6 +42,8 @@ functions:
         - ./**
       include:
         - functions/deduplicate/**
+    environment:
+      tableName: !Ref DynamoDBClicks
 
   aggregate:
     handler: functions/aggregate/src/handler.lambda_handler
@@ -77,3 +79,15 @@ resources:
           ServerSideEncryptionConfiguration:
             - ServerSideEncryptionByDefault:
                 SSEAlgorithm: AES256
+
+    DynamoDBClicks:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        # only define the attributes that DynamoDB needs to know about to build the KeySchema
+        AttributeDefinitions:
+          - AttributeName: click_id
+            AttributeType: N
+        BillingMode: PAY_PER_REQUEST
+        KeySchema:
+          - AttributeName: click_id
+            KeyType: HASH
