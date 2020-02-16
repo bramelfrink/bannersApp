@@ -26,8 +26,8 @@ class S3:
         df = pd.read_csv(f's3://{self.bucket}/{self.key_read}')
         return df
 
-    def write(self, df: DataFrame) -> None:
+    def write(self, df: DataFrame, folder: str) -> None:
         """
         Writes the DataFrame back to S3 as a CSV file.
         """
-        df.to_csv(f's3://{self.bucket}/{self.folder_write}')
+        df.to_csv(f's3://{self.bucket}/{folder}')
