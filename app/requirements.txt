@@ -10,3 +10,4 @@ jmespath
 python-dateutil
 s3transfer
 urllib3
+psycopg2-binary

@@ -7,7 +7,6 @@ plugins:
 custom:
   wsgi:
     app: app.app
-    packRequirements: false
 
 provider:
   name: aws
@@ -20,39 +19,14 @@ provider:
   iamRoleStatements:
     - Effect: Allow
       Action:
-        - dynamodb:Query
-        - dynamodb:Scan
-        - dynamodb:GetItem
-        - dynamodb:UpdateItem
-        - dynamodb:PutItem
-        - dynamodb:DeleteItem
+        - 'secretsmanager:GetSecretValue'
       Resource:
-        - !GetAtt CampaignBanners.Arn
-
-  environment:
-    CAMPAIGN_BANNERS_TABLE: !Ref CampaignBanners
+        - '*'
 
 functions:
   app:
     name: ${self:service}-app
-    handler: wsgi.handler
+    handler: wsgi_handler.handler
     events:
       - http: ANY /
       - http: 'ANY {proxy+}'
-
-resources:
-  Resources:
-    CampaignBanners:
-      Type: AWS::DynamoDB::Table
-      Properties:
-        AttributeDefinitions:
-          - AttributeName: campaign_id
-            AttributeType: N
-          - AttributeName: time
-            AttributeType: N
-        KeySchema:
-          - AttributeName: campaign_id
-            KeyType: HASH
-          - AttributeName: time
-            KeyType: RANGE
-        BillingMode: PAY_PER_REQUEST

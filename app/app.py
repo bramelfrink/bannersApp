@@ -1,54 +1,79 @@
+from flask import Flask
 import json
 import os
+import random
 from datetime import datetime as dt
+from typing import List, Tuple
 
 import boto3
-
-from flask import Flask, jsonify, request
+import psycopg2
 
 app = Flask(__name__)
 
 os.environ['CAMPAIGN_BANNERS_TABLE'] = 'serverless-flask-CampaignBanners-TMRSX6KBE5H8'
 CAMPAIGN_BANNERS_TABLE = os.environ['CAMPAIGN_BANNERS_TABLE']
-client = boto3.client('dynamodb')
 
 
-@app.route('/')
-def hello_world():
-    return 'Hello World!'
+def create_cursor():
+    """
+    Creates cursor to the database.
+    """
+    client = boto3.client('secretsmanager')
+    response = client.get_secret_value(
+        SecretId='postgres_db'
+    )
+    secret_string = json.loads(response['SecretString'])
+
+    conn = psycopg2.connect(dbname='postgres',
+                            host=secret_string['host'], port=secret_string['port'],
+                            user=secret_string['username'], password=secret_string['password'])
+    conn.autocommit = True
+
+    return conn.cursor()
 
 
-def get_top_banners(campaign_id: int, time: int) -> str:
+def get_top_banners(campaign_id: int, time: int) -> int:
     """
     Query RDS revenue table for banners belonging to the campaign.
 
-    :return: up to 10 banners that have generated revenue.
+    :return: a random banner_id from the top 10 banners belonging to the campaign.
     """
-    response = client.get_item(
-        TableName=CAMPAIGN_BANNERS_TABLE,
-        Key={
-            'campaign_id': {'N': str(campaign_id)},
-            'time': {'N': str(time)}
-        }
+    cur = create_cursor()
+    query = f"""
+    with best as (
+    SELECT campaign_id, banner_id, total_revenue, total_clicks, total_impressions
+    FROM banners.banner_performance
+    WHERE t = {time} and campaign_id = {campaign_id} and total_revenue notnull
+    ORDER BY total_revenue DESC, total_clicks DESC, total_impressions DESC
+    LIMIT 10
     )
-    # {"banners": {"L": [{"M": {"1": {"N": "20"}, "2": {"N": "2"}, "3": {"N": "64"}, "4": {"N": "5"}}}]}
+    SELECT *
+    FROM best;
+    """
+    cur.execute(query)
+    res: List[Tuple] = cur.fetchall()
 
-    banners_list = response.get('Item').get('banners').get('L')[0].get('M')
+    if len(res) == 0:
+        raise ValueError('No banners found for this campaign at this time')
+    banner = random.choice(res)
+    banner_id = banner[1]
+    return banner_id
 
-    # choose random banner
-    banner_id = banners_list.get('1').get('N')
 
+def show_banner(banner_id: int) -> json:
+    """
+    Generate a URL that points to the S3 bucket in which the banner images are hosted.
+    """
     banner_url = f'https://serve-banners.s3.eu-central-1.amazonaws.com/image_{banner_id}.png'
-
-    return banner_url
-
-
-def show_banner(url: str) -> json:
-    response = f'<img src="{url}">'
+    response = f'<img src="{banner_url}">'
     return response
 
 
 def get_time() -> int:
+    """
+    Converts the current time in minutes to 1, 2, 3 or 4.
+    This is just for convenience.
+    """
     cur_min = dt.now().minute
     if 0 <= cur_min < 15:
         return 1
@@ -60,6 +85,11 @@ def get_time() -> int:
         return 4
 
 
+@app.route('/')
+def hello_world():
+    return 'Hello World!'
+
+
 @app.route('/campaigns/<int:campaign_id>')
 def campaign_page(campaign_id: int):
     """
@@ -67,8 +97,12 @@ def campaign_page(campaign_id: int):
     """
     # query banners based on revenue
     time = get_time()
-    banner_url = get_top_banners(campaign_id, time)
-    return show_banner(banner_url)
+
+    try:
+        banner_id = get_top_banners(campaign_id, time)
+        return show_banner(banner_id)
+    except:
+        return 'No campaign found'
 
 
 if __name__ == '__main__':
