@@ -21,6 +21,16 @@ provider:
       Resource:
         - !GetAtt DynamoDBClicks.Arn
         - !GetAtt DynamoDBConversions.Arn
+    - Effect: Allow
+      Action:
+        - 'states:StartExecution'
+      Resource:
+        - '*'
+    - Effect: Allow
+      Action:
+        - 'secretsmanager:GetSecretValue'
+      Resource:
+        - '*'
 
 layers:
   Pandas:
@@ -49,8 +59,6 @@ functions:
         - ./**
       include:
         - functions/trigger/src/**
-    environment:
-      stateMachineArn: arn:aws:states:{{ aws_region }}:{{ aws_caller_facts.account }}:stateMachine:Banners
     events:
       - s3:
         bucket: ClickstreamBucket
@@ -62,6 +70,8 @@ functions:
   deduplicate_clicks:
     handler: functions/deduplicate/src/handler.click_lambda_handler
     name: ${self:service}-deduplicate-clicks
+    memorySize: 320
+    timeout: 300
     layers:
       - !Ref PandasLambdaLayer
     package:
@@ -87,14 +97,40 @@ functions:
     environment:
       tableName: !Ref DynamoDBConversions
 
-  aggregate:
-    handler: functions/aggregate/src/handler.lambda_handler
-    name: ${self:service}-aggregate
+  store_clicks:
+    handler: functions/store/src/handler.clicks_lambda_handler
+    name: ${self:service}-store-clicks
+    layers:
+      - !Ref PandasLambdaLayer
     package:
       exclude:
         - ./**
       include:
-        - functions/aggregate/**
+        - functions/store/**
+        - helpers/s3.py
+
+  store_conversions:
+    handler: functions/store/src/handler.conversions_lambda_handler
+    name: ${self:service}-store-conversions
+    layers:
+      - !Ref PandasLambdaLayer
+    package:
+      exclude:
+        - ./**
+      include:
+        - functions/store/**
+        - helpers/s3.py
+
+  store_impressions:
+    handler: functions/store/src/handler.impressions_lambda_handler
+    name: ${self:service}-store-impressions
+    layers:
+      - !Ref PandasLambdaLayer
+    package:
+      exclude:
+        - ./**
+      include:
+        - functions/store/**
         - helpers/s3.py
 
 stepFunctions:
@@ -107,35 +143,35 @@ stepFunctions:
           Deduplication:
             Type: Task
             Resource: !GetAtt deduplicate_clicks.Arn
-            Next: Aggregation
-          Aggregation:
+            Next: Store
+          Store:
             Type: Task
-            Resource: !GetAtt aggregate.Arn
+            Resource: !GetAtt store_clicks.Arn
             End: true
 
     BannersClickStream-conversions:
-      name: BannersClickStream-clicks
+      name: BannersClickStream-conversions
       definition:
         StartAt: Deduplication
         States:
           Deduplication:
             Type: Task
             Resource: !GetAtt deduplicate_conversions.Arn
-            Next: Aggregation
-          Aggregation:
+            Next: Store
+          Store:
             Type: Task
-            Resource: !GetAtt aggregate.Arn
+            Resource: !GetAtt store_conversions.Arn # change to conversion
             End: true
 
     BannersClickStream-impressions:
       # Assume that impressions are unique
       name: BannersClickStream-impressions
       definition:
-        StartAt: Aggregation
+        StartAt: Store
         States:
-          Aggregation:
+          Store:
             Type: Task
-            Resource: !GetAtt aggregate.Arn
+            Resource: !GetAtt store_impressions.Arn
             End: true
 
 resources:
