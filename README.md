@@ -1,5 +1,9 @@
 # Banners Assignment
 
+## Assumptions
+- impressions are always unique
+- a click_id should be unique
+
 ## Deployment
 Code can be found [here](cloudformation_templates/code_pipeline.yml)
 
