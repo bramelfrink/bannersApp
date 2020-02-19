@@ -37,8 +37,9 @@ class DynamoDBDeduplication:
     Class that contains methods for the deduplication step
     """
 
-    def __init__(self, column: str):
+    def __init__(self, column: str, table: str):
         self.column = column
+        self.table = table
         self.client = boto3.client('dynamodb')
 
     def is_unique(self, id: int) -> bool:
@@ -51,7 +52,7 @@ class DynamoDBDeduplication:
         :return: True if it is a duplicate, false otherwise
         """
         item = self.client.get_item(
-            TableName=os.environ['tableName'],
+            TableName=self.table,
             Key={
                 self.column: {
                     'N': str(id)
@@ -71,7 +72,7 @@ class DynamoDBDeduplication:
         check for duplicates.
         """
         self.client.put_item(
-            TableName=os.environ['tableName'],
+            TableName=self.table,
             Item={
                 self.column: {
                     'N': str(id)

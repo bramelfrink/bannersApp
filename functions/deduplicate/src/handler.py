@@ -19,7 +19,7 @@ def deduplicate(event, name: str):
     df_partially_deduplicated = deduplicate_input(df, 'click_id')
 
     # deduplicate using DynamoDB
-    dynamodb = DynamoDBDeduplication('click_id')
+    dynamodb = DynamoDBDeduplication('click_id', name)
     deduplicated_df = df_partially_deduplicated[df_partially_deduplicated['click_id'].apply(dynamodb.is_unique)]
 
     # find and store duplicates
