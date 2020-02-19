@@ -85,9 +85,11 @@ def impressions_lambda_handler(event, _):
 
     cur = create_cursor()
 
+    print(len(df))
+
     # Insert into Postgres
     for _, row in df.iterrows():
         query = f"""
-                INSERT INTO banners.clicks VALUES ({row['banner_id']}, {row['campaign_id']}, {row['time']});
+                INSERT INTO banners.impressions VALUES ({row['banner_id']}, {row['campaign_id']}, {row['time']});
                 """
         cur.execute(query)
