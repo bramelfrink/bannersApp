@@ -13,6 +13,7 @@ phases:
       - apt install nodejs
       - npm install -g serverless
       - npm install serverless-step-functions
+      - npm install serverless-python-requirements
       - sls deploy
       - cd app
       - npm install serverless-wsgi
