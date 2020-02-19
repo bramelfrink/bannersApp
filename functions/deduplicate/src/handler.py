@@ -13,6 +13,8 @@ def deduplicate(event, name: str):
     s3 = S3(event['bucket'], event['key'], 'deduplicated')
     df = s3.read()
 
+    file = event['key'].split('/')[-1]
+
     # deduplicate input
     df_partially_deduplicated = deduplicate_input(df, 'click_id')
 
@@ -20,24 +22,26 @@ def deduplicate(event, name: str):
     dynamodb = DynamoDBDeduplication('click_id')
     deduplicated_df = df_partially_deduplicated[df_partially_deduplicated['click_id'].apply(dynamodb.is_unique)]
 
-    # store full records in DynamoDB
-
     # find and store duplicates
     # Only stores completely dropped columns, because duplicates within the same CSV file are already dropped by
     # deduplicate_input().
-    # I did it this way to make less call to DynamoDB.
+    # I did it this way to make fewer calls to DynamoDB.
     duplicate_df = find_duplicates(df, deduplicated_df)
-    s3.write(duplicate_df, f'duplicates/{name}/')
+    s3.write(duplicate_df, f'duplicates/{name}/{file}')
 
     # write to S3
-    s3.write(deduplicated_df, s3.folder_write)
+    location = f'{s3.folder_write}/{name}/{file}'
+    s3.write(deduplicated_df, location)
+
+    return {'bucket': event['bucket'], 'key': location}
 
 
 def click_lambda_handler(event, _):
     """Deduplicates click events"""
-    deduplicate(event, 'clicks')
+    return deduplicate(event, 'clicks')
 
 
 def conversion_lambda_handler(event, _):
     """Deduplicates conversion events"""
-    deduplicate(event, 'conversions')
+    # I'm assuming that a user can only have 1 conversion per banner.
+    return deduplicate(event, 'conversions')
