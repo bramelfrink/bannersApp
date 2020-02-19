@@ -21,3 +21,5 @@ var/
 /csv/
 /node_modules/
 /layers/pandas/python/
+/creds
+/app/node_modules/
