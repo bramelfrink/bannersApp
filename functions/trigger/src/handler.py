@@ -20,7 +20,16 @@ def lambda_handler(event, _):
 
     result = json.dumps(obj)
 
+    if 'clicks' in key:
+        postfix = 'BannersClickStream-clicks'
+    elif 'conversions' in key:
+        postfix = 'BannersClickStream-conversions'
+    else:
+        postfix = 'BannersClickStream-impressions'
+
+    state_machine_arn = 'arn:aws:states:eu-central-1:162258891733:stateMachine:' + postfix
+
     client.start_execution(
-        stateMachineArn=os.environ["stateMachineArn"],
+        stateMachineArn=state_machine_arn,
         input=result
     )
