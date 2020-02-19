@@ -19,8 +19,7 @@ provider:
       Action:
         - 'dynamodb:*'
       Resource:
-        - !GetAtt DynamoDBClicks.Arn
-        - !GetAtt DynamoDBConversions.Arn
+        - '*'
     - Effect: Allow
       Action:
         - 'states:StartExecution'
@@ -80,12 +79,14 @@ functions:
       include:
         - functions/deduplicate/**
         - helpers/s3.py
-    environment:
-      tableName: !Ref DynamoDBClicks
+#    environment:
+#      tableName: !Ref DynamoDBClicks
 
   deduplicate_conversions:
     handler: functions/deduplicate/src/handler.conversion_lambda_handler
     name: ${self:service}-deduplicate-conversions
+    memorySize: 320
+    timeout: 300
     layers:
       - !Ref PandasLambdaLayer
     package:
@@ -94,12 +95,14 @@ functions:
       include:
         - functions/deduplicate/**
         - helpers/s3.py
-    environment:
-      tableName: !Ref DynamoDBConversions
+#    environment:
+#      tableName: !Ref DynamoDBConversions
 
   store_clicks:
     handler: functions/store/src/handler.clicks_lambda_handler
     name: ${self:service}-store-clicks
+    memorySize: 320
+    timeout: 300
     layers:
       - !Ref PandasLambdaLayer
     package:
@@ -112,6 +115,8 @@ functions:
   store_conversions:
     handler: functions/store/src/handler.conversions_lambda_handler
     name: ${self:service}-store-conversions
+    memorySize: 320
+    timeout: 300
     layers:
       - !Ref PandasLambdaLayer
     package:
@@ -124,6 +129,8 @@ functions:
   store_impressions:
     handler: functions/store/src/handler.impressions_lambda_handler
     name: ${self:service}-store-impressions
+    memorySize: 320
+    timeout: 300
     layers:
       - !Ref PandasLambdaLayer
     package:
@@ -184,26 +191,28 @@ resources:
             - ServerSideEncryptionByDefault:
                 SSEAlgorithm: AES256
 
-    DynamoDBClicks:
-      Type: AWS::DynamoDB::Table
-      Properties:
-        # only define the attributes that DynamoDB needs to know about to build the KeySchema
-        AttributeDefinitions:
-          - AttributeName: click_id
-            AttributeType: N
-        BillingMode: PAY_PER_REQUEST
-        KeySchema:
-          - AttributeName: click_id
-            KeyType: HASH
-
-    DynamoDBConversions:
-      Type: AWS::DynamoDB::Table
-      Properties:
-        # only define the attributes that DynamoDB needs to know about to build the KeySchema
-        AttributeDefinitions:
-          - AttributeName: click_id
-            AttributeType: N
-        BillingMode: PAY_PER_REQUEST
-        KeySchema:
-          - AttributeName: click_id
-            KeyType: HASH
+# Commented these out because I tried deleting one table to quickly empty it out.
+# Redeploying did not recreate the table however. Not wanting to spend too much time to investigate why.
+#    DynamoDBClicks:
+#      Type: AWS::DynamoDB::Table
+#      Properties:
+#        # only define the attributes that DynamoDB needs to know about to build the KeySchema
+#        AttributeDefinitions:
+#          - AttributeName: click_id
+#            AttributeType: N
+#        BillingMode: PAY_PER_REQUEST
+#        KeySchema:
+#          - AttributeName: click_id
+#            KeyType: HASH
+#
+#    DynamoDBConversions:
+#      Type: AWS::DynamoDB::Table
+#      Properties:
+#        # only define the attributes that DynamoDB needs to know about to build the KeySchema
+#        AttributeDefinitions:
+#          - AttributeName: click_id
+#            AttributeType: N
+#        BillingMode: PAY_PER_REQUEST
+#        KeySchema:
+#          - AttributeName: click_id
+#            KeyType: HASH
