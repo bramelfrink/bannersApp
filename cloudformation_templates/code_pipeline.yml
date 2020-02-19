@@ -50,6 +50,7 @@ Resources:
                   - cloudformation:DescribeAccountLimits
                   - cloudformation:ValidateTemplate
                   - cloudformation:GetTemplateSummary
+                  - cloudformation:DescribeStackResource
                 Resource: "*"
               - Effect: Allow
                 Action: cloudformation:*
@@ -77,6 +78,30 @@ Resources:
                             - "/"
                             - - stackset
                               - Banners
+                              - "*"
+                  - Fn::Join:
+                      - ":"
+                      - - arn
+                        - aws
+                        - cloudformation
+                        - Ref: AWS::Region
+                        - Ref: AWS::AccountId
+                        - Fn::Join:
+                            - "/"
+                            - - stack
+                              - serverless-flask
+                              - "*"
+                  - Fn::Join:
+                      - ":"
+                      - - arn
+                        - aws
+                        - cloudformation
+                        - Ref: AWS::Region
+                        - Ref: AWS::AccountId
+                        - Fn::Join:
+                            - "/"
+                            - - stackset
+                              - serverless-flask
                               - "*"
         - PolicyDocument:
             Version: "2012-10-17"
