@@ -1,0 +1,58 @@
+service: serverless-flask
+
+plugins:
+  - serverless-python-requirements
+  - serverless-wsgi
+
+custom:
+  wsgi:
+    app: app.app
+    packRequirements: false
+
+provider:
+  name: aws
+  runtime: python3.8
+  stage: ${opt:stage, 'dev'}
+  region: eu-central-1
+  stackName: ${self:service}
+  logRetentionInDays: 14
+
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - dynamodb:Query
+        - dynamodb:Scan
+        - dynamodb:GetItem
+        - dynamodb:UpdateItem
+        - dynamodb:PutItem
+        - dynamodb:DeleteItem
+      Resource:
+        - !GetAtt CampaignBanners.Arn
+
+  environment:
+    CAMPAIGN_BANNERS_TABLE: !Ref CampaignBanners
+
+functions:
+  app:
+    name: ${self:service}-app
+    handler: wsgi.handler
+    events:
+      - http: ANY /
+      - http: 'ANY {proxy+}'
+
+resources:
+  Resources:
+    CampaignBanners:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        AttributeDefinitions:
+          - AttributeName: campaign_id
+            AttributeType: N
+          - AttributeName: time
+            AttributeType: N
+        KeySchema:
+          - AttributeName: campaign_id
+            KeyType: HASH
+          - AttributeName: time
+            KeyType: RANGE
+        BillingMode: PAY_PER_REQUEST
