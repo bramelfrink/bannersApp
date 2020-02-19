@@ -35,6 +35,13 @@ Resources:
             Action:
               - sts:AssumeRole
       Policies:
+        - PolicyName: APIGateway
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: 'apigateway:*'
+                Resource: '*'
         - PolicyName: CloudFormation
           PolicyDocument:
             Version: "2012-10-17"
