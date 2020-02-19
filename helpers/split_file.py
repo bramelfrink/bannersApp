@@ -4,7 +4,7 @@ Splits the input files into smaller files.
 import os
 
 
-def split(filename, delimiter=',', row_limit=200,
+def split(filename, delimiter=',', row_limit=5000,
           output_path='out', keep_headers=True):
     """
     Splits a CSV file.
@@ -47,4 +47,4 @@ def split(filename, delimiter=',', row_limit=200,
 
 
 if __name__ == '__main__':
-    split('csv/4/impressions_4.csv')
+    split('csv/4/conversions_4.csv')
