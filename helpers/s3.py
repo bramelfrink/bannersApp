@@ -3,6 +3,8 @@ Interface to read and write CSV data from and to S3.
 """
 import pandas as pd
 from pandas import DataFrame
+import boto3
+from io import StringIO
 
 
 class S3:
@@ -11,6 +13,7 @@ class S3:
     """
     
     def __init__(self, bucket: str, key_read: str, folder_write: str):
+        self.client = boto3.client('s3')
         self.bucket = bucket
         self.key_read = key_read
         self.folder_write = folder_write
@@ -21,7 +24,11 @@ class S3:
 
         :return: The CSV file as a DataFrame
         """
-        df = pd.read_csv(f's3://{self.bucket}/{self.key_read}')
+        csv_obj = self.client.get_object(Bucket=self.bucket, Key=self.key_read)
+        body = csv_obj['Body']
+        csv_string = body.read().decode('utf-8')
+
+        df = pd.read_csv(StringIO(csv_string))
         return df
 
     def write(self, df: DataFrame, folder: str) -> None:
